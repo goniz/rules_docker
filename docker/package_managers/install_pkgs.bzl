@@ -58,7 +58,7 @@ rm -f /var/cache/ldconfig/aux-cache
 rm -f /var/cache/apt/pkgcache.bin
 mkdir -p /run/mount/ && touch /run/mount/utab""".format(tar = tar, installation_cleanup_commands = installation_cleanup_commands)
 
-def _impl(ctx, image_tar = None, installables_tar = None, installation_cleanup_commands = "", output_image_name = "", output_tar = None):
+def _impl(ctx, image_tar = None, installables_tar = None, installation_cleanup_commands = "", output_image_name = "", output_tar = None, platform = None):
     """Implementation for the install_pkgs rule.
 
     Args:
@@ -68,12 +68,14 @@ def _impl(ctx, image_tar = None, installables_tar = None, installation_cleanup_c
       installation_cleanup_commands: str, overrides ctx.attr.installation_cleanup_commands
       output_image_name: str, overrides ctx.attr.output_image_name
       output_tar: File, overrides ctx.outputs.out
+      platform: str, overrides ctx.attr.platform
     """
     image_tar = image_tar or ctx.file.image_tar
     installables_tar = installables_tar or ctx.file.installables_tar
     installation_cleanup_commands = installation_cleanup_commands or ctx.attr.installation_cleanup_commands
     output_image_name = output_image_name or ctx.attr.output_image_name
     output_tar = output_tar or ctx.outputs.out
+    platform = platform or ctx.attr.platform
 
     installables_tar_path = installables_tar.path
 
@@ -92,6 +94,10 @@ def _impl(ctx, image_tar = None, installables_tar = None, installation_cleanup_c
 
     toolchain_info = ctx.toolchains["@io_bazel_rules_docker//toolchains/docker:toolchain_type"].info
 
+    docker_run_flags = ""
+    if platform is not None:
+        docker_run_flags = "--platform=" + platform
+
     # Generate a shell script to execute the reset cmd
     image_util = ctx.actions.declare_file("image_util.sh")
     ctx.actions.expand_template(
@@ -99,6 +105,7 @@ def _impl(ctx, image_tar = None, installables_tar = None, installation_cleanup_c
         output = image_util,
         substitutions = {
             "%{docker_flags}": " ".join(toolchain_info.docker_flags),
+            "%{docker_run_flags}": docker_run_flags,
             "%{docker_tool_path}": docker_path(toolchain_info),
         },
         is_executable = True,
@@ -111,6 +118,7 @@ def _impl(ctx, image_tar = None, installables_tar = None, installation_cleanup_c
         substitutions = {
             "%{base_image_tar}": image_tar.path,
             "%{docker_flags}": " ".join(toolchain_info.docker_flags),
+            "%{docker_run_flags}": docker_run_flags,
             "%{docker_tool_path}": docker_path(toolchain_info),
             "%{image_id_extractor_path}": ctx.executable._extract_image_id.path,
             "%{installables_tar}": installables_tar_path,
@@ -170,6 +178,7 @@ _attrs = {
         doc = ("Name of container_image produced with the packages installed."),
         mandatory = True,
     ),
+    "platform": attr.string(doc = "Optional: Specify non-native platform to run images of another Arch (Use binfmt-support)"),
     "_config_stripper": attr.label(
         default = "//docker/util:config_stripper",
         executable = True,

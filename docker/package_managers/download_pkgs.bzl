@@ -73,7 +73,7 @@ tar -cpf {installables}_packages.tar --mtime='1970-01-01' --directory /tmp/insta
         add_additional_repo_commands = _generate_add_additional_repo_commands(ctx, additional_repos),
     )
 
-def _impl(ctx, image_tar = None, packages = None, additional_repos = None, output_executable = None, output_tar = None, output_script = None, output_metadata = None):
+def _impl(ctx, image_tar = None, packages = None, additional_repos = None, output_executable = None, output_tar = None, output_script = None, output_metadata = None, platform = None):
     """Implementation for the download_pkgs rule.
 
     Args:
@@ -85,6 +85,7 @@ def _impl(ctx, image_tar = None, packages = None, additional_repos = None, outpu
         output_tar: File, overrides ctx.outputs.pkg_tar
         output_script: File, overrides ctx.outputs.build_script
         output_metadata: File, overrides ctx.outputs.metadata_csv
+        platform: str, overrides ctx.attr.platform
     """
     if types.is_depset(packages):
         packages = packages.to_list()
@@ -95,11 +96,16 @@ def _impl(ctx, image_tar = None, packages = None, additional_repos = None, outpu
     output_tar = output_tar or ctx.outputs.pkg_tar
     output_script = output_script or ctx.outputs.build_script
     output_metadata = output_metadata or ctx.outputs.metadata_csv
+    platform = platform or ctx.attr.platform
 
     if not packages:
         fail("attribute 'packages' given to download_pkgs rule by {} was empty.".format(attr.label))
 
     toolchain_info = ctx.toolchains["@io_bazel_rules_docker//toolchains/docker:toolchain_type"].info
+
+    docker_run_flags = ""
+    if platform is not None:
+        docker_run_flags = "--platform=" + platform
 
     # Generate a shell script to execute the apt_get inside this docker image.
     # We use full paths here.
@@ -108,6 +114,7 @@ def _impl(ctx, image_tar = None, packages = None, additional_repos = None, outpu
         output = output_script,
         substitutions = {
             "%{docker_flags}": " ".join(toolchain_info.docker_flags),
+            "%{docker_run_flags}": docker_run_flags,
             "%{docker_tool_path}": docker_path(toolchain_info),
             "%{download_commands}": _generate_download_commands(ctx, packages, additional_repos),
             "%{image_id_extractor_path}": ctx.executable._extract_image_id.path,
@@ -134,6 +141,7 @@ def _impl(ctx, image_tar = None, packages = None, additional_repos = None, outpu
         output = output_executable,
         substitutions = {
             "%{docker_flags}": " ".join(toolchain_info.docker_flags),
+            "%{docker_run_flags}": docker_run_flags,
             "%{docker_tool_path}": docker_path(toolchain_info),
             "%{download_commands}": _generate_download_commands(ctx, packages, additional_repos),
             "%{image_id_extractor_path}": "${RUNFILES}/%s" % runfile(ctx, ctx.executable._extract_image_id),
@@ -175,6 +183,7 @@ _attrs = {
         doc = "list of packages to download. e.g. ['curl', 'netbase']",
         mandatory = True,
     ),
+    "platform": attr.string(doc = "Optional: Specify non-native platform to run images of another Arch (Use binfmt-support)"),
     "_extract_image_id": attr.label(
         default = Label("//contrib:extract_image_id"),
         cfg = "host",
