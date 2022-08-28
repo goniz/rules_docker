@@ -104,7 +104,7 @@ def _impl(ctx, image_tar = None, packages = None, additional_repos = None, outpu
     toolchain_info = ctx.toolchains["@io_bazel_rules_docker//toolchains/docker:toolchain_type"].info
 
     docker_run_flags = ""
-    if platform is not None:
+    if platform:
         docker_run_flags = "--platform=" + platform
 
     # Generate a shell script to execute the apt_get inside this docker image.

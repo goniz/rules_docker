@@ -95,7 +95,7 @@ def _impl(ctx, image_tar = None, installables_tar = None, installation_cleanup_c
     toolchain_info = ctx.toolchains["@io_bazel_rules_docker//toolchains/docker:toolchain_type"].info
 
     docker_run_flags = ""
-    if platform is not None:
+    if platform:
         docker_run_flags = "--platform=" + platform
 
     # Generate a shell script to execute the reset cmd
